@@ -1177,12 +1177,15 @@ async function escalateRarity(box, finalRarityIndex) {
   for (let tier = 0; tier <= finalRarityIndex; tier++) {
     const isFinal = tier === finalRarityIndex;
 
-    // Style box for current tier (color always changes — that's the visual reveal)
+    // Every step: generic sound + white particles (keeps it unpredictable)
     styleBoxForTier(box, tier);
     setTierLabel(tier);
+    Sound.crack();
+    emitBurst(cx, cy, '#fff', 8);
 
     if (isFinal) {
-      // Final tier: play the tier-specific sound + effects
+      // Brief pause, then play the real tier-specific celebration
+      await sleep(300);
       Sound.rarityReveal(tier);
       if (tier >= 3) {
         emitFlash(RARITIES[tier].color);
@@ -1195,14 +1198,10 @@ async function escalateRarity(box, finalRarityIndex) {
         await sleep(200);
         document.getElementById('app').style.animation = '';
       }
-      await sleep(400);
-    } else {
-      // Intermediate tier: generic step sound + small neutral burst
-      Sound.crack();
-      emitBurst(cx, cy, '#fff', 8);
       await sleep(300);
-
+    } else {
       // Wait for tap to try upgrading
+      await sleep(300);
       box.classList.remove('disabled');
       box.classList.add('waiting');
       await waitForTap(box);
