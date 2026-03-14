@@ -1175,38 +1175,41 @@ async function escalateRarity(box, finalRarityIndex) {
   const cy = center.top + center.height / 2;
 
   for (let tier = 0; tier <= finalRarityIndex; tier++) {
-    // Style box for current tier
+    const isFinal = tier === finalRarityIndex;
+
+    // Style box for current tier (color always changes — that's the visual reveal)
     styleBoxForTier(box, tier);
     setTierLabel(tier);
-    Sound.rarityReveal(tier);
 
-    // Screen effects for high rarities
-    if (tier >= 3) {
-      emitFlash(RARITIES[tier].color);
-      document.getElementById('app').style.animation = 'screenShake 0.4s';
+    if (isFinal) {
+      // Final tier: play the tier-specific sound + effects
+      Sound.rarityReveal(tier);
+      if (tier >= 3) {
+        emitFlash(RARITIES[tier].color);
+        document.getElementById('app').style.animation = 'screenShake 0.4s';
+        await sleep(400);
+        document.getElementById('app').style.animation = '';
+      } else if (tier >= 2) {
+        emitBurst(cx, cy, RARITIES[tier].color, 25);
+        document.getElementById('app').style.animation = 'screenShake 0.2s';
+        await sleep(200);
+        document.getElementById('app').style.animation = '';
+      }
       await sleep(400);
-      document.getElementById('app').style.animation = '';
-    } else if (tier >= 2) {
-      emitBurst(cx, cy, RARITIES[tier].color, 25);
-      document.getElementById('app').style.animation = 'screenShake 0.2s';
-      await sleep(200);
-      document.getElementById('app').style.animation = '';
-    }
-
-    if (tier < finalRarityIndex) {
-      // Not at final tier yet — wait for tap to upgrade
+    } else {
+      // Intermediate tier: generic step sound + small neutral burst
+      Sound.crack();
+      emitBurst(cx, cy, '#fff', 8);
       await sleep(300);
+
+      // Wait for tap to try upgrading
       box.classList.remove('disabled');
       box.classList.add('waiting');
       await waitForTap(box);
       box.classList.remove('waiting');
       box.classList.add('disabled');
       Sound.uiClick();
-      emitBurst(cx, cy, RARITIES[tier + 1].color, 15);
       await sleep(100);
-    } else {
-      // Reached final tier
-      await sleep(400);
     }
   }
 }
