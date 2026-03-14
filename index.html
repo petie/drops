@@ -93,6 +93,63 @@
       background: #ffd700;
       color: #1a0a2e;
     }
+
+    /* --- Split Boxes --- */
+    .split-boxes {
+      display: none;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      padding: 10px;
+    }
+    .split-boxes.active {
+      display: flex;
+    }
+    .split-box {
+      width: 70px;
+      height: 82px;
+      background: radial-gradient(ellipse at center, #6b3fa0 0%, #4a1f7a 40%, #2d1050 100%);
+      border-radius: 12px;
+      border: 2px solid #9b59b6;
+      box-shadow: 0 0 15px rgba(155, 89, 182, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 28px;
+      transition: transform 0.1s, box-shadow 0.3s, background 0.3s, border-color 0.3s;
+      position: relative;
+    }
+    .split-box:active { transform: scale(0.93); }
+    .split-box.disabled {
+      pointer-events: none;
+      opacity: 0.5;
+    }
+    .split-box.waiting {
+      animation: pulse 0.6s ease-in-out infinite alternate;
+    }
+    .split-box.revealed {
+      opacity: 0.3;
+      pointer-events: none;
+      filter: grayscale(0.5);
+    }
+    @keyframes splitAppear {
+      from { transform: scale(0); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    /* --- Rarity Tier Label --- */
+    .rarity-tier-label {
+      font-size: 16px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      text-align: center;
+      min-height: 24px;
+      margin-bottom: 4px;
+      transition: color 0.3s;
+    }
     .drop-box-icon { font-size: 56px; }
     .drop-box-label {
       position: absolute;
@@ -412,7 +469,9 @@
         <div class="drop-box-icon">🎁</div>
         <div class="drop-box-label">Tap to Open</div>
       </div>
+      <div class="split-boxes" id="splitBoxes"></div>
     </div>
+    <div class="rarity-tier-label" id="rarityTierLabel"></div>
     <div class="rarity-bar">
       <span style="background: #3498db;"></span>
       <span style="background: #9b59b6;"></span>
@@ -1017,29 +1076,6 @@ async function animateSplitCheck(splitCount, rarityIndex) {
   }
 }
 
-async function animateRarityReveal(rarityIndex) {
-  const rarity = RARITIES[rarityIndex];
-  const center = getDropBoxCenter();
-  dropBox.style.animation = 'none';
-  dropBox.style.transition = 'all 0.4s';
-  dropBox.style.background = `radial-gradient(ellipse at center, ${rarity.color}, ${rarity.color}88)`;
-  dropBox.style.borderColor = rarity.color;
-  dropBox.style.boxShadow = `0 0 ${rarity.glowSize}px ${rarity.color}`;
-  Sound.rarityReveal(rarityIndex);
-  if (rarityIndex >= 3) {
-    emitFlash(rarity.color);
-    document.getElementById('app').style.animation = 'screenShake 0.4s';
-    await sleep(400);
-    document.getElementById('app').style.animation = '';
-  } else if (rarityIndex >= 2) {
-    emitBurst(center.x, center.y, rarity.color, 25);
-    document.getElementById('app').style.animation = 'screenShake 0.2s';
-    await sleep(200);
-    document.getElementById('app').style.animation = '';
-  }
-  await sleep(400);
-}
-
 async function animateRewardReveal(reward, rarityIndex) {
   const rarity = RARITIES[rarityIndex];
   revealOverlay.classList.add('active');
@@ -1107,15 +1143,92 @@ function waitForTap(element) {
 }
 
 function setDropLabel(text) {
-  const label = dropBox.querySelector('.drop-box-label');
-  label.textContent = text;
+  dropBox.querySelector('.drop-box-label').textContent = text;
 }
 
-function showDropCount(current, total) {
-  const label = dropBox.querySelector('.drop-box-label');
-  if (total > 1) {
-    label.textContent = `${current}/${total} — Tap to Reveal`;
+const rarityTierLabel = document.getElementById('rarityTierLabel');
+const splitBoxesContainer = document.getElementById('splitBoxes');
+
+function setTierLabel(tierIndex) {
+  const r = RARITIES[tierIndex];
+  rarityTierLabel.textContent = `★ ${r.name} ★`;
+  rarityTierLabel.style.color = r.color;
+  rarityTierLabel.style.textShadow = `0 0 15px ${r.color}`;
+}
+
+function clearTierLabel() {
+  rarityTierLabel.textContent = '';
+  rarityTierLabel.style.textShadow = '';
+}
+
+function styleBoxForTier(box, tierIndex) {
+  const r = RARITIES[tierIndex];
+  box.style.background = `radial-gradient(ellipse at center, ${r.color}, ${r.color}88)`;
+  box.style.borderColor = r.color;
+  box.style.boxShadow = `0 0 ${r.glowSize}px ${r.color}`;
+}
+
+// Rarity escalation: step through each tier up to the final rarity, one tap per step
+async function escalateRarity(box, finalRarityIndex) {
+  const center = box.getBoundingClientRect();
+  const cx = center.left + center.width / 2;
+  const cy = center.top + center.height / 2;
+
+  for (let tier = 0; tier <= finalRarityIndex; tier++) {
+    // Style box for current tier
+    styleBoxForTier(box, tier);
+    setTierLabel(tier);
+    Sound.rarityReveal(tier);
+
+    // Screen effects for high rarities
+    if (tier >= 3) {
+      emitFlash(RARITIES[tier].color);
+      document.getElementById('app').style.animation = 'screenShake 0.4s';
+      await sleep(400);
+      document.getElementById('app').style.animation = '';
+    } else if (tier >= 2) {
+      emitBurst(cx, cy, RARITIES[tier].color, 25);
+      document.getElementById('app').style.animation = 'screenShake 0.2s';
+      await sleep(200);
+      document.getElementById('app').style.animation = '';
+    }
+
+    if (tier < finalRarityIndex) {
+      // Not at final tier yet — wait for tap to upgrade
+      await sleep(300);
+      box.classList.remove('disabled');
+      box.classList.add('waiting');
+      await waitForTap(box);
+      box.classList.remove('waiting');
+      box.classList.add('disabled');
+      Sound.uiClick();
+      emitBurst(cx, cy, RARITIES[tier + 1].color, 15);
+      await sleep(100);
+    } else {
+      // Reached final tier
+      await sleep(400);
+    }
   }
+}
+
+function createSplitBoxes(count) {
+  splitBoxesContainer.innerHTML = '';
+  const boxes = [];
+  for (let i = 0; i < count; i++) {
+    const box = document.createElement('div');
+    box.className = 'split-box disabled';
+    box.textContent = '🎁';
+    box.style.animation = `splitAppear 0.3s ${i * 0.1}s both`;
+    splitBoxesContainer.appendChild(box);
+    boxes.push(box);
+  }
+  splitBoxesContainer.classList.add('active');
+  return boxes;
+}
+
+function clearSplitBoxes() {
+  splitBoxesContainer.classList.remove('active');
+  splitBoxesContainer.innerHTML = '';
 }
 
 async function openDrop() {
@@ -1140,36 +1253,62 @@ async function openDrop() {
   // Phase 2: Split Check
   await animateSplitCheck(splitCount, rarityIndex);
 
-  // Phase 3 + 4: For each reward, wait for tap then reveal
-  for (let i = 0; i < rewards.length; i++) {
-    if (i > 0) {
-      // Reset box for next split drop
-      resetDropBox();
-      await sleep(300);
-      dropBox.style.boxShadow = `0 0 ${RARITIES[rarityIndex].glowSize}px ${RARITIES[rarityIndex].color}`;
-      dropBox.style.borderColor = RARITIES[rarityIndex].color;
-    }
+  if (splitCount === 1) {
+    // Single drop: escalate rarity on the main drop box, then reveal
+    dropBox.style.animation = 'none';
+    await escalateRarity(dropBox, rarityIndex);
 
-    // Rarity reveal on the box
-    await animateRarityReveal(rarityIndex);
-
-    // Wait for tap to reveal the actual reward
-    showDropCount(i + 1, splitCount);
-    if (splitCount === 1) setDropLabel('Tap to Reveal');
+    // Wait for tap to reveal reward
+    setDropLabel('Tap to Reveal');
     dropBox.classList.remove('disabled');
     dropBox.classList.add('waiting');
     await waitForTap(dropBox);
     dropBox.classList.remove('waiting');
     dropBox.classList.add('disabled');
     Sound.uiClick();
+    clearTierLabel();
+    await animateRewardReveal(rewards[0], rarityIndex);
 
-    // Show reward
-    await animateRewardReveal(rewards[i], rarityIndex);
+  } else {
+    // Multi-split: hide main box, show split boxes
+    dropBox.style.display = 'none';
+    const boxes = createSplitBoxes(splitCount);
+    await sleep(300 + splitCount * 100); // wait for appear animations
+
+    // Process each split box
+    for (let i = 0; i < boxes.length; i++) {
+      const box = boxes[i];
+
+      // Escalate rarity on this box
+      await escalateRarity(box, rarityIndex);
+
+      // Wait for tap to reveal
+      box.classList.remove('disabled');
+      box.classList.add('waiting');
+      await waitForTap(box);
+      box.classList.remove('waiting');
+      box.classList.add('disabled');
+      Sound.uiClick();
+      clearTierLabel();
+
+      // Show reward
+      await animateRewardReveal(rewards[i], rarityIndex);
+
+      // Mark as revealed
+      box.classList.add('revealed');
+      box.textContent = rewards[i].icon;
+    }
+
+    // Clean up split view
+    await sleep(300);
+    clearSplitBoxes();
+    dropBox.style.display = '';
   }
 
   recordDrop(rarityIndex, splitCount, rewards);
   resetDropBox();
   setDropLabel('Tap to Open');
+  clearTierLabel();
   updateUI();
   dropBox.classList.remove('disabled');
   isAnimating = false;
