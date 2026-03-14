@@ -667,6 +667,450 @@
     }
     return { rarityIndex, splitCount, rewards };
   }
+
+// ============================================================
+// PARTICLES
+// ============================================================
+
+const particleCanvas = document.getElementById('particles');
+const pCtx = particleCanvas.getContext('2d');
+let particles = [];
+let particleAnimId = null;
+const MAX_PARTICLES = 300;
+
+function resizeCanvas() {
+  particleCanvas.width = window.innerWidth;
+  particleCanvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+class Particle {
+  constructor(x, y, color, opts = {}) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.size = opts.size || (Math.random() * 4 + 2);
+    this.speedX = opts.speedX || (Math.random() - 0.5) * 8;
+    this.speedY = opts.speedY || (Math.random() - 0.5) * 8;
+    this.life = opts.life || 1;
+    this.decay = opts.decay || (Math.random() * 0.02 + 0.01);
+    this.gravity = opts.gravity || 0;
+  }
+  update() {
+    this.x += this.speedX;
+    this.y += this.speedY;
+    this.speedY += this.gravity;
+    this.life -= this.decay;
+  }
+  draw(ctx) {
+    ctx.globalAlpha = Math.max(0, this.life);
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function startParticleLoop() {
+  if (particleAnimId) return;
+  function loop() {
+    pCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+    particles = particles.filter(p => p.life > 0);
+    if (particles.length > MAX_PARTICLES) {
+      particles = particles.slice(particles.length - MAX_PARTICLES);
+    }
+    for (const p of particles) {
+      p.update();
+      p.draw(pCtx);
+    }
+    pCtx.globalAlpha = 1;
+    if (particles.length > 0) {
+      particleAnimId = requestAnimationFrame(loop);
+    } else {
+      particleAnimId = null;
+      pCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+    }
+  }
+  particleAnimId = requestAnimationFrame(loop);
+}
+
+function emitBurst(x, y, color, count = 30) {
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 * i) / count + Math.random() * 0.3;
+    const speed = Math.random() * 6 + 2;
+    particles.push(new Particle(x, y, color, {
+      speedX: Math.cos(angle) * speed,
+      speedY: Math.sin(angle) * speed,
+      size: Math.random() * 5 + 1,
+      decay: Math.random() * 0.015 + 0.008,
+      gravity: 0.05,
+    }));
+  }
+  startParticleLoop();
+}
+
+function emitSwirl(targetX, targetY, color, duration = 1000) {
+  const interval = 30;
+  let elapsed = 0;
+  const id = setInterval(() => {
+    elapsed += interval;
+    if (elapsed >= duration) { clearInterval(id); return; }
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 150 + Math.random() * 80;
+    const startX = targetX + Math.cos(angle) * dist;
+    const startY = targetY + Math.sin(angle) * dist;
+    const dx = targetX - startX;
+    const dy = targetY - startY;
+    const steps = 40 + Math.random() * 20;
+    particles.push(new Particle(startX, startY, color, {
+      speedX: dx / steps,
+      speedY: dy / steps,
+      size: Math.random() * 3 + 1,
+      life: 1,
+      decay: 1 / steps,
+    }));
+    startParticleLoop();
+  }, interval);
+  return id;
+}
+
+function emitFlash(color) {
+  const cx = particleCanvas.width / 2;
+  const cy = particleCanvas.height / 2;
+  for (let i = 0; i < 60; i++) {
+    const angle = (Math.PI * 2 * i) / 60;
+    const speed = Math.random() * 12 + 6;
+    particles.push(new Particle(cx, cy, color, {
+      speedX: Math.cos(angle) * speed,
+      speedY: Math.sin(angle) * speed,
+      size: Math.random() * 6 + 2,
+      decay: Math.random() * 0.01 + 0.006,
+      gravity: 0,
+    }));
+  }
+  startParticleLoop();
+}
+
+// ============================================================
+// SOUND
+// ============================================================
+
+let audioCtx = null;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playTone(freq, duration, type = 'sine', volume = 0.3, delay = 0) {
+  if (!state.soundOn) return;
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+  gain.gain.setValueAtTime(volume, ctx.currentTime + delay);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime + delay);
+  osc.stop(ctx.currentTime + delay + duration);
+}
+
+function playNoise(duration, volume = 0.2, delay = 0) {
+  if (!state.soundOn) return;
+  const ctx = getAudioCtx();
+  const bufferSize = ctx.sampleRate * duration;
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(volume, ctx.currentTime + delay);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + duration);
+  source.connect(gain);
+  gain.connect(ctx.destination);
+  source.start(ctx.currentTime + delay);
+}
+
+function playSweep(startFreq, endFreq, duration, type = 'sine', volume = 0.2, delay = 0) {
+  if (!state.soundOn) return;
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(startFreq, ctx.currentTime + delay);
+  osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + delay + duration);
+  gain.gain.setValueAtTime(0.001, ctx.currentTime);
+  if (delay > 0) gain.gain.setValueAtTime(0.001, ctx.currentTime + delay - 0.001);
+  gain.gain.setValueAtTime(volume, ctx.currentTime + delay);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime + delay);
+  osc.stop(ctx.currentTime + delay + duration);
+}
+
+function createReverb(duration = 1.5) {
+  const ctx = getAudioCtx();
+  const length = ctx.sampleRate * duration;
+  const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = impulse.getChannelData(ch);
+    for (let i = 0; i < length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2);
+    }
+  }
+  const convolver = ctx.createConvolver();
+  convolver.buffer = impulse;
+  return convolver;
+}
+
+function playToneWithReverb(freq, duration, type = 'sine', volume = 0.3, delay = 0, reverbDuration = 1.5) {
+  if (!state.soundOn) return;
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const reverb = createReverb(reverbDuration);
+  const reverbGain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+  gain.gain.setValueAtTime(volume, ctx.currentTime + delay);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + duration);
+  reverbGain.gain.setValueAtTime(0.4, ctx.currentTime);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.connect(reverb);
+  reverb.connect(reverbGain);
+  reverbGain.connect(ctx.destination);
+  osc.start(ctx.currentTime + delay);
+  osc.stop(ctx.currentTime + delay + duration);
+}
+
+const Sound = {
+  chargeUp() {
+    playSweep(200, 800, 1.0, 'sawtooth', 0.15);
+    playSweep(80, 150, 1.0, 'sine', 0.2);
+  },
+  split(count) {
+    playNoise(0.15, 0.3);
+    for (let i = 0; i < count; i++) {
+      playTone(400 + i * 100, 0.1, 'sine', 0.2, 0.15 + i * 0.08);
+    }
+  },
+  rarityReveal(rarityIndex) {
+    const reveals = [
+      () => {
+        playTone(523, 0.3, 'sine', 0.25);
+        playTone(659, 0.4, 'sine', 0.25, 0.15);
+      },
+      () => {
+        playTone(523, 0.25, 'sine', 0.25);
+        playTone(659, 0.25, 'sine', 0.25, 0.12);
+        playTone(784, 0.35, 'sine', 0.25, 0.24);
+      },
+      () => {
+        playTone(220, 0.4, 'sawtooth', 0.2);
+        playTone(440, 0.4, 'sawtooth', 0.15, 0.05);
+        playTone(880, 0.5, 'square', 0.1, 0.1);
+      },
+      () => {
+        playSweep(300, 600, 0.3, 'sawtooth', 0.2);
+        playToneWithReverb(784, 0.3, 'sine', 0.2, 0.2, 1.5);
+        playToneWithReverb(988, 0.3, 'sine', 0.2, 0.35, 1.5);
+        playToneWithReverb(1175, 0.5, 'sine', 0.25, 0.5, 2.0);
+      },
+      () => {
+        playSweep(600, 60, 0.5, 'sawtooth', 0.3);
+        playNoise(0.3, 0.15, 0.1);
+        playSweep(2000, 4000, 0.8, 'sine', 0.1, 0.2);
+        playToneWithReverb(1175, 0.8, 'sine', 0.15, 0.3, 3.0);
+      },
+    ];
+    reveals[rarityIndex]();
+  },
+  rewardReveal() {
+    playTone(880, 0.15, 'sine', 0.2);
+    playTone(1320, 0.2, 'sine', 0.15, 0.08);
+    playTone(1760, 0.3, 'sine', 0.1, 0.16);
+  },
+  crack() {
+    playNoise(0.08, 0.15);
+  },
+  uiClick() {
+    playTone(600, 0.05, 'sine', 0.1);
+  },
+};
+
+// ============================================================
+// ANIMATION ORCHESTRATOR
+// ============================================================
+
+let isAnimating = false;
+
+const dropBox = document.getElementById('dropBox');
+const revealOverlay = document.getElementById('revealOverlay');
+const revealRarity = document.getElementById('revealRarity');
+const revealIcon = document.getElementById('revealIcon');
+const revealName = document.getElementById('revealName');
+const revealType = document.getElementById('revealType');
+const revealDuplicate = document.getElementById('revealDuplicate');
+const splitTextEl = document.getElementById('splitText');
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function getDropBoxCenter() {
+  const rect = dropBox.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+async function animateChargeUp(rarityIndex) {
+  const color = RARITIES[rarityIndex].color;
+  const center = getDropBoxCenter();
+  const swirlId = emitSwirl(center.x, center.y, color, 900);
+  Sound.chargeUp();
+  dropBox.style.transition = 'box-shadow 1s, transform 0.05s';
+  dropBox.style.boxShadow = `0 0 ${RARITIES[rarityIndex].glowSize}px ${color}, inset 0 -5px 10px rgba(0,0,0,0.3)`;
+  dropBox.style.animation = 'shake 0.1s infinite';
+  await sleep(500);
+  dropBox.style.animation = 'shakeHard 0.08s infinite';
+  await sleep(500);
+  clearInterval(swirlId);
+}
+
+async function animateSplitCheck(splitCount, rarityIndex) {
+  const color = RARITIES[rarityIndex].color;
+  const center = getDropBoxCenter();
+  if (splitCount > 1) {
+    Sound.split(splitCount);
+    emitBurst(center.x, center.y, color, 40);
+    emitBurst(center.x, center.y, '#fff', 15);
+    splitTextEl.textContent = `×${splitCount} SPLIT!`;
+    splitTextEl.style.color = color;
+    splitTextEl.style.transform = 'translate(-50%, -50%) scale(0)';
+    splitTextEl.style.display = 'block';
+    splitTextEl.style.opacity = '1';
+    await sleep(50);
+    splitTextEl.style.transition = 'transform 0.3s cubic-bezier(0.17, 0.67, 0.21, 1.3)';
+    splitTextEl.style.transform = 'translate(-50%, -50%) scale(1)';
+    await sleep(600);
+    splitTextEl.style.transition = 'opacity 0.3s';
+    splitTextEl.style.opacity = '0';
+    await sleep(300);
+    splitTextEl.style.display = 'none';
+  } else {
+    Sound.crack();
+    emitBurst(center.x, center.y, color, 10);
+    await sleep(300);
+  }
+}
+
+async function animateRarityReveal(rarityIndex) {
+  const rarity = RARITIES[rarityIndex];
+  const center = getDropBoxCenter();
+  dropBox.style.animation = 'none';
+  dropBox.style.transition = 'all 0.4s';
+  dropBox.style.background = `radial-gradient(ellipse at center, ${rarity.color}, ${rarity.color}88)`;
+  dropBox.style.borderColor = rarity.color;
+  dropBox.style.boxShadow = `0 0 ${rarity.glowSize}px ${rarity.color}`;
+  Sound.rarityReveal(rarityIndex);
+  if (rarityIndex >= 3) {
+    emitFlash(rarity.color);
+    document.getElementById('app').style.animation = 'screenShake 0.4s';
+    await sleep(400);
+    document.getElementById('app').style.animation = '';
+  } else if (rarityIndex >= 2) {
+    emitBurst(center.x, center.y, rarity.color, 25);
+    document.getElementById('app').style.animation = 'screenShake 0.2s';
+    await sleep(200);
+    document.getElementById('app').style.animation = '';
+  }
+  await sleep(400);
+}
+
+async function animateRewardReveal(reward, rarityIndex) {
+  const rarity = RARITIES[rarityIndex];
+  revealOverlay.classList.add('active');
+  revealRarity.textContent = `★ ${rarity.name.toUpperCase()} ★`;
+  revealRarity.style.color = rarity.color;
+  revealRarity.style.textShadow = `0 0 20px ${rarity.color}`;
+  revealRarity.style.animation = 'slamIn 0.4s forwards';
+  await sleep(300);
+  revealIcon.textContent = reward.icon;
+  revealIcon.style.animation = 'zoomIn 0.3s forwards';
+  Sound.rewardReveal();
+  emitBurst(window.innerWidth / 2, window.innerHeight / 2, rarity.color, 25);
+  await sleep(200);
+  revealName.textContent = reward.name;
+  revealName.style.animation = 'fadeInUp 0.3s forwards';
+  await sleep(100);
+  const typeLabel = reward.isDuplicate ? reward.originalType : reward.type;
+  revealType.textContent = typeLabel;
+  revealType.style.color = rarity.color;
+  revealType.style.animation = 'fadeInUp 0.3s forwards';
+  if (reward.isDuplicate) {
+    revealDuplicate.style.display = 'block';
+    revealDuplicate.style.animation = 'fadeInUp 0.3s forwards';
+  }
+  await sleep(200);
+  const tapHint = revealOverlay.querySelector('.reveal-tap-hint');
+  tapHint.style.animation = 'fadeInUp 0.5s forwards';
+  await new Promise(resolve => {
+    revealOverlay.addEventListener('click', function handler() {
+      revealOverlay.removeEventListener('click', handler);
+      resolve();
+    });
+  });
+  revealOverlay.classList.remove('active');
+  revealRarity.style.animation = '';
+  revealRarity.style.opacity = '0';
+  revealIcon.style.animation = '';
+  revealIcon.style.opacity = '0';
+  revealName.style.animation = '';
+  revealName.style.opacity = '0';
+  revealType.style.animation = '';
+  revealType.style.opacity = '0';
+  revealDuplicate.style.display = 'none';
+  revealDuplicate.style.animation = '';
+  revealDuplicate.style.opacity = '0';
+  tapHint.style.animation = '';
+  tapHint.style.opacity = '0';
+}
+
+function resetDropBox() {
+  dropBox.style.transition = 'all 0.3s';
+  dropBox.style.background = 'radial-gradient(ellipse at center, #6b3fa0 0%, #4a1f7a 40%, #2d1050 100%)';
+  dropBox.style.borderColor = '#9b59b6';
+  dropBox.style.boxShadow = '0 0 30px rgba(155, 89, 182, 0.4), inset 0 -5px 10px rgba(0,0,0,0.3)';
+  dropBox.style.animation = '';
+}
+
+async function openDrop() {
+  if (isAnimating) return;
+  isAnimating = true;
+  const drop = performDrop();
+  const { rarityIndex, splitCount, rewards } = drop;
+  await animateChargeUp(rarityIndex);
+  await animateSplitCheck(splitCount, rarityIndex);
+  for (let i = 0; i < rewards.length; i++) {
+    if (i > 0) {
+      resetDropBox();
+      await sleep(300);
+      dropBox.style.boxShadow = `0 0 ${RARITIES[rarityIndex].glowSize}px ${RARITIES[rarityIndex].color}`;
+      dropBox.style.borderColor = RARITIES[rarityIndex].color;
+      await sleep(200);
+    }
+    await animateRarityReveal(rarityIndex);
+    await animateRewardReveal(rewards[i], rarityIndex);
+  }
+  recordDrop(rarityIndex, splitCount, rewards);
+  resetDropBox();
+  updateUI();
+  isAnimating = false;
+}
   </script>
 </body>
 </html>
