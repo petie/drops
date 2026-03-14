@@ -88,6 +88,11 @@
       pointer-events: none;
       opacity: 0.7;
     }
+    .drop-box.waiting .drop-box-label {
+      animation: pulse 0.6s ease-in-out infinite alternate;
+      background: #ffd700;
+      color: #1a0a2e;
+    }
     .drop-box-icon { font-size: 56px; }
     .drop-box-label {
       position: absolute;
@@ -1092,27 +1097,79 @@ function resetDropBox() {
   dropBox.style.animation = '';
 }
 
+function waitForTap(element) {
+  return new Promise(resolve => {
+    element.addEventListener('click', function handler() {
+      element.removeEventListener('click', handler);
+      resolve();
+    });
+  });
+}
+
+function setDropLabel(text) {
+  const label = dropBox.querySelector('.drop-box-label');
+  label.textContent = text;
+}
+
+function showDropCount(current, total) {
+  const label = dropBox.querySelector('.drop-box-label');
+  if (total > 1) {
+    label.textContent = `${current}/${total} — Tap to Reveal`;
+  }
+}
+
 async function openDrop() {
   if (isAnimating) return;
   isAnimating = true;
   dropBox.classList.add('disabled');
   const drop = performDrop();
   const { rarityIndex, splitCount, rewards } = drop;
+
+  // Phase 1: Charge Up (auto-plays)
   await animateChargeUp(rarityIndex);
+
+  // Wait for tap to crack open
+  setDropLabel('Tap to Crack');
+  dropBox.classList.remove('disabled');
+  dropBox.classList.add('waiting');
+  await waitForTap(dropBox);
+  dropBox.classList.remove('waiting');
+  dropBox.classList.add('disabled');
+  Sound.uiClick();
+
+  // Phase 2: Split Check
   await animateSplitCheck(splitCount, rarityIndex);
+
+  // Phase 3 + 4: For each reward, wait for tap then reveal
   for (let i = 0; i < rewards.length; i++) {
     if (i > 0) {
+      // Reset box for next split drop
       resetDropBox();
       await sleep(300);
       dropBox.style.boxShadow = `0 0 ${RARITIES[rarityIndex].glowSize}px ${RARITIES[rarityIndex].color}`;
       dropBox.style.borderColor = RARITIES[rarityIndex].color;
-      await sleep(200);
     }
+
+    // Rarity reveal on the box
     await animateRarityReveal(rarityIndex);
+
+    // Wait for tap to reveal the actual reward
+    showDropCount(i + 1, splitCount);
+    if (splitCount === 1) setDropLabel('Tap to Reveal');
+    dropBox.classList.remove('disabled');
+    dropBox.classList.add('waiting');
+    await waitForTap(dropBox);
+    dropBox.classList.remove('waiting');
+    dropBox.classList.add('disabled');
+    Sound.uiClick();
+
+    // Show reward
     await animateRewardReveal(rewards[i], rarityIndex);
   }
+
   recordDrop(rarityIndex, splitCount, rewards);
   resetDropBox();
+  setDropLabel('Tap to Open');
   updateUI();
   dropBox.classList.remove('disabled');
   isAnimating = false;
