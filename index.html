@@ -84,6 +84,10 @@
       transition: transform 0.1s;
     }
     .drop-box:active { transform: scale(0.95); }
+    .drop-box.disabled {
+      pointer-events: none;
+      opacity: 0.7;
+    }
     .drop-box-icon { font-size: 56px; }
     .drop-box-label {
       position: absolute;
@@ -1091,6 +1095,7 @@ function resetDropBox() {
 async function openDrop() {
   if (isAnimating) return;
   isAnimating = true;
+  dropBox.classList.add('disabled');
   const drop = performDrop();
   const { rarityIndex, splitCount, rewards } = drop;
   await animateChargeUp(rarityIndex);
@@ -1109,8 +1114,153 @@ async function openDrop() {
   recordDrop(rarityIndex, splitCount, rewards);
   resetDropBox();
   updateUI();
+  dropBox.classList.remove('disabled');
   isAnimating = false;
 }
+  // ============================================================
+  // UI
+  // ============================================================
+
+  function updateUI() {
+    document.getElementById('dropCount').textContent = state.totalDrops;
+    document.getElementById('soundToggle').textContent = state.soundOn ? '🔊 Sound' : '🔇 Muted';
+    const recentRow = document.getElementById('recentRow');
+    if (state.recentDrops.length === 0) {
+      recentRow.innerHTML = '<div style="color:#555; font-size:12px; padding:8px;">No drops yet — tap the box!</div>';
+    } else {
+      recentRow.innerHTML = state.recentDrops.map(r => {
+        const color = RARITIES[r.rarityIndex].color;
+        return `<div class="recent-item" style="border-color: ${color}33; background: ${color}15;">
+          <div class="recent-item-icon">${r.icon}</div>
+          <div class="recent-item-name" style="color: ${color};">${r.name}</div>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  function renderStats() {
+    const content = document.getElementById('statsContent');
+    const total = Math.max(state.totalDrops, 1);
+    const bestDropText = state.bestDrop
+      ? `${RARITIES[state.bestDrop.rarityIndex].name} ×${state.bestDrop.splitCount}`
+      : 'None yet';
+    const collectionCount = Object.keys(state.collection).length;
+    const totalCollectibles = REWARDS.filter(r => COLLECTIBLE_TYPES.includes(r.type)).length;
+    content.innerHTML = `
+      <div class="stat-row"><span class="label">Total Drops</span><span class="value">${state.totalDrops}</span></div>
+      <div class="stat-row"><span class="label">Best Drop</span><span class="value">${bestDropText}</span></div>
+      <div class="stat-row"><span class="label">Collection</span><span class="value">${collectionCount}/${totalCollectibles}</span></div>
+      <h3 style="font-size:14px; margin:16px 0 8px; color:#aaa;">Rarity Distribution</h3>
+      <div class="bar-chart">
+        ${RARITIES.map((r, i) => {
+          const count = state.rarityCount[i];
+          const pct = (count / total * 100);
+          return `<div class="bar-row">
+            <span class="bar-label">${r.name}</span>
+            <div class="bar-track">
+              <div class="bar-fill" style="width:${pct}%; background:${r.color};"></div>
+            </div>
+            <span class="bar-count">${count}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <h3 style="font-size:14px; margin:16px 0 8px; color:#aaa;">Luck Meter</h3>
+      <div class="luck-meter">
+        ${RARITIES.map((r, i) => {
+          const actualNum = state.totalDrops > 0 ? (state.rarityCount[i] / state.totalDrops * 100) : 0;
+          const expectedNum = r.chance * 100;
+          const diffNum = actualNum - expectedNum;
+          const diffColor = diffNum > 0.05 ? '#2ecc71' : diffNum < -0.05 ? '#e74c3c' : '#888';
+          return `<div style="display:flex; justify-content:space-between; font-size:12px; padding:3px 0;">
+            <span style="color:${r.color};">${r.name}</span>
+            <span>${actualNum.toFixed(1)}% <span style="color:${diffColor};">(${diffNum > 0 ? '+' : ''}${diffNum.toFixed(1)}%)</span> vs ${expectedNum.toFixed(1)}%</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <h3 style="font-size:14px; margin:16px 0 8px; color:#aaa;">Split Distribution</h3>
+      <div class="bar-chart">
+        ${SPLITS.map(s => {
+          const count = state.splitCount[s.count] || 0;
+          const totalSplits = Object.values(state.splitCount).reduce((a, b) => a + b, 0) || 1;
+          const pct = (count / totalSplits * 100);
+          return `<div class="bar-row">
+            <span class="bar-label">×${s.count}</span>
+            <div class="bar-track">
+              <div class="bar-fill" style="width:${pct}%; background:#9b59b6;"></div>
+            </div>
+            <span class="bar-count">${count}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  function renderCollection() {
+    const content = document.getElementById('collectionContent');
+    const collectibles = REWARDS.filter(r => COLLECTIBLE_TYPES.includes(r.type));
+    content.innerHTML = `
+      <div class="collection-grid">
+        ${collectibles.map(item => {
+          const owned = state.collection[item.id];
+          const rarity = RARITIES[item.rarities[0]];
+          return `<div class="collection-item ${owned ? '' : 'locked'}"
+            style="border-color: ${owned ? rarity.color + '44' : 'rgba(255,255,255,0.1)'};"
+            ${owned ? `onclick="alert('${item.name}\\n${item.type}\\n${rarity.name}\\nDrop #${owned.dropNumber}')"` : ''}>
+            <div class="collection-item-icon">${owned ? item.icon : '❓'}</div>
+            <div class="collection-item-name">${owned ? item.name : '???'}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  dropBox.addEventListener('click', () => {
+    Sound.uiClick();
+    openDrop();
+  });
+
+  document.getElementById('soundToggle').addEventListener('click', () => {
+    state.soundOn = !state.soundOn;
+    saveState();
+    updateUI();
+  });
+
+  document.getElementById('statsBtn').addEventListener('click', () => {
+    Sound.uiClick();
+    renderStats();
+    renderCollection();
+    document.getElementById('statsModal').classList.add('active');
+  });
+
+  document.getElementById('statsClose').addEventListener('click', () => {
+    document.getElementById('statsModal').classList.remove('active');
+  });
+
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const target = tab.dataset.tab;
+      document.getElementById('statsContent').style.display = target === 'stats' ? 'block' : 'none';
+      document.getElementById('collectionContent').style.display = target === 'collection' ? 'block' : 'none';
+    });
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    if (confirm('Reset all data? This cannot be undone.')) {
+      resetState();
+      renderStats();
+      renderCollection();
+    }
+  });
+
+  document.getElementById('statsModal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('statsModal')) {
+      document.getElementById('statsModal').classList.remove('active');
+    }
+  });
+
+  updateUI();
   </script>
 </body>
 </html>
