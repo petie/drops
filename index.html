@@ -1035,13 +1035,12 @@ function getDropBoxCenter() {
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
 
-async function animateChargeUp(rarityIndex) {
-  const color = RARITIES[rarityIndex].color;
+async function animateChargeUp() {
   const center = getDropBoxCenter();
-  const swirlId = emitSwirl(center.x, center.y, color, 900);
+  const swirlId = emitSwirl(center.x, center.y, '#9b59b6', 900);
   Sound.chargeUp();
   dropBox.style.transition = 'box-shadow 1s, transform 0.05s';
-  dropBox.style.boxShadow = `0 0 ${RARITIES[rarityIndex].glowSize}px ${color}, inset 0 -5px 10px rgba(0,0,0,0.3)`;
+  dropBox.style.boxShadow = '0 0 30px rgba(155, 89, 182, 0.6), inset 0 -5px 10px rgba(0,0,0,0.3)';
   dropBox.style.animation = 'shake 0.1s infinite';
   await sleep(500);
   dropBox.style.animation = 'shakeHard 0.08s infinite';
@@ -1049,15 +1048,14 @@ async function animateChargeUp(rarityIndex) {
   clearInterval(swirlId);
 }
 
-async function animateSplitCheck(splitCount, rarityIndex) {
-  const color = RARITIES[rarityIndex].color;
+async function animateSplitCheck(splitCount) {
   const center = getDropBoxCenter();
   if (splitCount > 1) {
     Sound.split(splitCount);
-    emitBurst(center.x, center.y, color, 40);
+    emitBurst(center.x, center.y, '#fff', 40);
     emitBurst(center.x, center.y, '#fff', 15);
     splitTextEl.textContent = `×${splitCount} SPLIT!`;
-    splitTextEl.style.color = color;
+    splitTextEl.style.color = '#ffd700';
     splitTextEl.style.transform = 'translate(-50%, -50%) scale(0)';
     splitTextEl.style.display = 'block';
     splitTextEl.style.opacity = '1';
@@ -1071,7 +1069,7 @@ async function animateSplitCheck(splitCount, rarityIndex) {
     splitTextEl.style.display = 'none';
   } else {
     Sound.crack();
-    emitBurst(center.x, center.y, color, 10);
+    emitBurst(center.x, center.y, '#fff', 10);
     await sleep(300);
   }
 }
@@ -1241,7 +1239,7 @@ async function openDrop() {
   const { rarityIndex, splitCount, rewards } = drop;
 
   // Phase 1: Charge Up (auto-plays)
-  await animateChargeUp(rarityIndex);
+  await animateChargeUp();
 
   // Wait for tap to crack open
   setDropLabel('Tap to Crack');
@@ -1253,7 +1251,7 @@ async function openDrop() {
   Sound.uiClick();
 
   // Phase 2: Split Check
-  await animateSplitCheck(splitCount, rarityIndex);
+  await animateSplitCheck(splitCount);
 
   if (splitCount === 1) {
     // Single drop: escalate rarity on the main drop box, then reveal
