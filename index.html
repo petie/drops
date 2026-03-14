@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Chaos Drops</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 50%, #1a0a2e 100%);
+      color: #fff;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100dvh;
+      padding: 12px 16px;
+      max-width: 480px;
+      margin: 0 auto;
+      position: relative;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .header-btn {
+      font-size: 13px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #ccc;
+      padding: 6px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .header-btn:active { background: rgba(255,255,255,0.2); }
+    .title {
+      font-size: 28px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      background: linear-gradient(to bottom, #ffd700, #ff8c00);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-align: center;
+    }
+    .drop-counter {
+      font-size: 12px;
+      color: #888;
+      text-align: center;
+      margin-top: 2px;
+      margin-bottom: 24px;
+    }
+    .drop-zone {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      width: 100%;
+      min-height: 200px;
+    }
+    .drop-box {
+      width: 140px;
+      height: 165px;
+      background: radial-gradient(ellipse at center, #6b3fa0 0%, #4a1f7a 40%, #2d1050 100%);
+      border-radius: 18px;
+      border: 3px solid #9b59b6;
+      box-shadow: 0 0 30px rgba(155, 89, 182, 0.4), inset 0 -5px 10px rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.1s;
+    }
+    .drop-box:active { transform: scale(0.95); }
+    .drop-box-icon { font-size: 56px; }
+    .drop-box-label {
+      position: absolute;
+      bottom: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      font-weight: 700;
+      background: #9b59b6;
+      padding: 3px 12px;
+      border-radius: 12px;
+      white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .rarity-bar {
+      display: flex;
+      gap: 4px;
+      margin: 24px 0 4px;
+    }
+    .rarity-bar span {
+      height: 5px;
+      border-radius: 3px;
+      flex: 1;
+    }
+    .rarity-labels {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 20px;
+    }
+    .rarity-labels span {
+      flex: 1;
+      text-align: center;
+      font-size: 9px;
+      color: #666;
+    }
+    .recent-section {
+      width: 100%;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding-top: 12px;
+    }
+    .recent-label {
+      font-size: 10px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .recent-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .recent-row::-webkit-scrollbar { display: none; }
+    .recent-item {
+      min-width: 56px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 8px 6px;
+      text-align: center;
+      font-size: 11px;
+    }
+    .recent-item-icon { font-size: 20px; margin-bottom: 2px; }
+    .recent-item-name { font-size: 9px; color: #aaa; white-space: nowrap; }
+    #particles {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 100;
+    }
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      z-index: 200;
+      display: none;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: linear-gradient(135deg, #1e0f35, #2a1848);
+      border: 1px solid rgba(155,89,182,0.3);
+      border-radius: 16px;
+      padding: 24px;
+      width: 100%;
+      max-width: 440px;
+      margin-top: 20px;
+    }
+    .modal h2 {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .modal-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      font-size: 24px;
+      color: #888;
+      cursor: pointer;
+      background: none;
+      border: none;
+    }
+    .reveal-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.9);
+      z-index: 150;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      cursor: pointer;
+    }
+    .reveal-overlay.active { display: flex; }
+    .reveal-rarity-text {
+      font-size: 20px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      margin-bottom: 16px;
+      opacity: 0;
+    }
+    .reveal-item-icon { font-size: 72px; opacity: 0; }
+    .reveal-item-name {
+      font-size: 22px;
+      font-weight: 800;
+      margin-top: 12px;
+      opacity: 0;
+    }
+    .reveal-item-type {
+      font-size: 13px;
+      margin-top: 4px;
+      opacity: 0;
+    }
+    .reveal-duplicate {
+      font-size: 11px;
+      background: rgba(255,0,0,0.3);
+      padding: 3px 10px;
+      border-radius: 8px;
+      margin-top: 8px;
+      opacity: 0;
+      display: none;
+    }
+    .reveal-tap-hint {
+      position: absolute;
+      bottom: 40px;
+      font-size: 12px;
+      color: #555;
+      opacity: 0;
+    }
+    .split-text {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      font-size: 48px;
+      font-weight: 900;
+      z-index: 160;
+      text-shadow: 0 0 30px currentColor;
+      pointer-events: none;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-4px) rotate(-1deg); }
+      75% { transform: translateX(4px) rotate(1deg); }
+    }
+    @keyframes shakeHard {
+      0%, 100% { transform: translateX(0); }
+      10% { transform: translateX(-6px) rotate(-2deg); }
+      30% { transform: translateX(5px) rotate(1.5deg); }
+      50% { transform: translateX(-7px) rotate(-2.5deg); }
+      70% { transform: translateX(6px) rotate(2deg); }
+      90% { transform: translateX(-4px) rotate(-1deg); }
+    }
+    @keyframes pulse { 0% { transform: scale(1); } 100% { transform: scale(1.06); } }
+    @keyframes slamIn {
+      0% { transform: scale(3); opacity: 0; }
+      60% { transform: scale(0.9); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes fadeInUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes zoomIn {
+      from { transform: scale(0); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    @keyframes flash {
+      0% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    @keyframes screenShake {
+      0%, 100% { transform: translate(0, 0); }
+      10% { transform: translate(-8px, -5px); }
+      20% { transform: translate(7px, 6px); }
+      30% { transform: translate(-6px, 4px); }
+      40% { transform: translate(5px, -7px); }
+      50% { transform: translate(-4px, 5px); }
+      60% { transform: translate(6px, -4px); }
+      70% { transform: translate(-5px, 3px); }
+      80% { transform: translate(4px, -6px); }
+      90% { transform: translate(-3px, 5px); }
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      font-size: 14px;
+    }
+    .stat-row .label { color: #aaa; }
+    .stat-row .value { font-weight: 700; }
+    .bar-chart { margin: 12px 0; }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+    .bar-row .bar-label { width: 70px; color: #aaa; }
+    .bar-row .bar-track {
+      flex: 1;
+      height: 14px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 7px;
+      overflow: hidden;
+      margin: 0 8px;
+    }
+    .bar-row .bar-fill {
+      height: 100%;
+      border-radius: 7px;
+      transition: width 0.3s;
+    }
+    .bar-row .bar-count { width: 35px; text-align: right; color: #ccc; }
+    .collection-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .collection-item {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .collection-item.locked {
+      opacity: 0.3;
+      filter: grayscale(1);
+    }
+    .collection-item-icon { font-size: 24px; }
+    .collection-item-name { font-size: 9px; color: #aaa; margin-top: 2px; }
+    .luck-meter {
+      margin: 12px 0;
+      padding: 10px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+    }
+    .luck-meter h4 { font-size: 12px; color: #aaa; margin-bottom: 8px; }
+    .btn-danger {
+      background: rgba(231, 76, 60, 0.2);
+      border: 1px solid rgba(231, 76, 60, 0.4);
+      color: #e74c3c;
+      padding: 8px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      cursor: pointer;
+      margin-top: 16px;
+      width: 100%;
+    }
+    .btn-danger:active { background: rgba(231, 76, 60, 0.4); }
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 16px;
+      border-bottom: 2px solid rgba(255,255,255,0.1);
+    }
+    .tab {
+      flex: 1;
+      text-align: center;
+      padding: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #666;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.2s;
+    }
+    .tab.active { color: #fff; border-bottom-color: #9b59b6; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="header">
+      <button class="header-btn" id="soundToggle">🔊 Sound</button>
+      <button class="header-btn" id="statsBtn">📊 Stats</button>
+    </div>
+    <div class="title">Chaos Drops</div>
+    <div class="drop-counter">Drops Opened: <span id="dropCount">0</span></div>
+    <div class="drop-zone">
+      <div class="drop-box" id="dropBox">
+        <div class="drop-box-icon">🎁</div>
+        <div class="drop-box-label">Tap to Open</div>
+      </div>
+    </div>
+    <div class="rarity-bar">
+      <span style="background: #3498db;"></span>
+      <span style="background: #9b59b6;"></span>
+      <span style="background: #e74c3c;"></span>
+      <span style="background: #f39c12;"></span>
+      <span style="background: #e91e63;"></span>
+    </div>
+    <div class="rarity-labels">
+      <span>S.Rare</span><span>Epic</span><span>Mythic</span><span>Legend</span><span>Ultra</span>
+    </div>
+    <div class="recent-section">
+      <div class="recent-label">Recent Drops</div>
+      <div class="recent-row" id="recentRow"></div>
+    </div>
+  </div>
+  <canvas id="particles"></canvas>
+  <div class="reveal-overlay" id="revealOverlay">
+    <div class="reveal-rarity-text" id="revealRarity"></div>
+    <div class="reveal-item-icon" id="revealIcon"></div>
+    <div class="reveal-item-name" id="revealName"></div>
+    <div class="reveal-item-type" id="revealType"></div>
+    <div class="reveal-duplicate" id="revealDuplicate">DUPLICATE — Fallback Reward</div>
+    <div class="reveal-tap-hint">Tap anywhere to continue</div>
+  </div>
+  <div class="split-text" id="splitText"></div>
+  <div class="modal-overlay" id="statsModal">
+    <div class="modal" style="position: relative;">
+      <button class="modal-close" id="statsClose">✕</button>
+      <h2>📊 Stats</h2>
+      <div class="tabs">
+        <div class="tab active" data-tab="stats">Stats</div>
+        <div class="tab" data-tab="collection">Collection</div>
+      </div>
+      <div id="statsContent"></div>
+      <div id="collectionContent" style="display: none;"></div>
+      <button class="btn-danger" id="resetBtn">Reset All Data</button>
+    </div>
+  </div>
+  <script>
+  // ============================================================
+  // CONFIG
+  // ============================================================
+
+  const RARITIES = [
+    { name: 'Super Rare', chance: 0.52, color: '#3498db', glowSize: 20, shakeClass: '' },
+    { name: 'Epic',       chance: 0.28, color: '#9b59b6', glowSize: 30, shakeClass: '' },
+    { name: 'Mythic',     chance: 0.12, color: '#e74c3c', glowSize: 40, shakeClass: 'shake' },
+    { name: 'Legendary',  chance: 0.06, color: '#f39c12', glowSize: 60, shakeClass: 'shakeHard' },
+    { name: 'Ultra',      chance: 0.02, color: '#e91e63', glowSize: 80, shakeClass: 'shakeHard' },
+  ];
+
+  const SPLITS = [
+    { count: 1, chance: 0.70 },
+    { count: 2, chance: 0.20 },
+    { count: 4, chance: 0.08 },
+    { count: 8, chance: 0.02 },
+  ];
+
+  const REWARDS = [
+    { id: 'b1',  name: 'Darryl',     type: 'Brawler', icon: '🏴‍☠️', rarities: [0] },
+    { id: 'b2',  name: 'Penny',      type: 'Brawler', icon: '💰', rarities: [0] },
+    { id: 'b3',  name: 'Rico',       type: 'Brawler', icon: '🤖', rarities: [0] },
+    { id: 'b4',  name: 'Piper',      type: 'Brawler', icon: '☂️', rarities: [1] },
+    { id: 'b5',  name: 'Frank',      type: 'Brawler', icon: '🔨', rarities: [1] },
+    { id: 'b6',  name: 'Bibi',       type: 'Brawler', icon: '⚾', rarities: [1] },
+    { id: 'b7',  name: 'Mortis',     type: 'Brawler', icon: '🦇', rarities: [2] },
+    { id: 'b8',  name: 'Tara',       type: 'Brawler', icon: '🔮', rarities: [2] },
+    { id: 'b9',  name: 'Gene',       type: 'Brawler', icon: '🧞', rarities: [2] },
+    { id: 'b10', name: 'Crow',       type: 'Brawler', icon: '🐦', rarities: [3] },
+    { id: 'b11', name: 'Leon',       type: 'Brawler', icon: '🦎', rarities: [3] },
+    { id: 'b12', name: 'Spike',      type: 'Brawler', icon: '🌵', rarities: [3] },
+    { id: 'b13', name: 'Amber',      type: 'Brawler', icon: '🔥', rarities: [3] },
+    { id: 'b14', name: 'Draco',      type: 'Brawler', icon: '🐉', rarities: [4] },
+    { id: 'b15', name: 'Kenji',      type: 'Brawler', icon: '⚔️', rarities: [4] },
+    { id: 'g1', name: 'Recoiling Rotator',  type: 'Gadget', icon: '🎯', rarities: [0] },
+    { id: 'g2', name: 'Pocket Detonator',   type: 'Gadget', icon: '💣', rarities: [0] },
+    { id: 'g3', name: 'Friendzoner',        type: 'Gadget', icon: '🛡️', rarities: [1] },
+    { id: 'g4', name: 'Tweete',             type: 'Gadget', icon: '🐤', rarities: [1] },
+    { id: 'g5', name: 'Survival Shovel',    type: 'Gadget', icon: '⛏️', rarities: [2] },
+    { id: 'g6', name: 'Psychic Enhancer',   type: 'Gadget', icon: '🧠', rarities: [2] },
+    { id: 'sp1', name: 'Snappy Sniping',  type: 'Star Power', icon: '⭐', rarities: [1] },
+    { id: 'sp2', name: 'Sponge',          type: 'Star Power', icon: '⭐', rarities: [1] },
+    { id: 'sp3', name: 'Coiled Snake',    type: 'Star Power', icon: '⭐', rarities: [2] },
+    { id: 'sp4', name: 'Healing Shade',   type: 'Star Power', icon: '⭐', rarities: [2] },
+    { id: 'sp5', name: 'Carrion Crow',    type: 'Star Power', icon: '⭐', rarities: [3] },
+    { id: 'sp6', name: 'Invisiheal',      type: 'Star Power', icon: '⭐', rarities: [3] },
+    { id: 'hc1', name: 'Mortis Hypercharge',  type: 'Hypercharge', icon: '⚡', rarities: [2] },
+    { id: 'hc2', name: 'Tara Hypercharge',    type: 'Hypercharge', icon: '⚡', rarities: [2] },
+    { id: 'hc3', name: 'Crow Hypercharge',    type: 'Hypercharge', icon: '⚡', rarities: [3] },
+    { id: 'hc4', name: 'Leon Hypercharge',    type: 'Hypercharge', icon: '⚡', rarities: [3] },
+    { id: 'hc5', name: 'Draco Hypercharge',   type: 'Hypercharge', icon: '⚡', rarities: [4] },
+    { id: 'hc6', name: 'Kenji Hypercharge',   type: 'Hypercharge', icon: '⚡', rarities: [4] },
+    { id: 's1',  name: 'Bandit Shelly',     type: 'Skin', icon: '👗', rarities: [0] },
+    { id: 's2',  name: 'Rockstar Colt',     type: 'Skin', icon: '🎸', rarities: [0] },
+    { id: 's3',  name: 'Royal Agent Colt',  type: 'Skin', icon: '🕶️', rarities: [1] },
+    { id: 's4',  name: 'Phoenix Crow',      type: 'Skin', icon: '🔥', rarities: [3] },
+    { id: 's5',  name: 'Werewolf Leon',     type: 'Skin', icon: '🐺', rarities: [3] },
+    { id: 's6',  name: 'Mecha Crow',        type: 'Skin', icon: '🤖', rarities: [4] },
+    { id: 's7',  name: 'Mecha Leon',        type: 'Skin', icon: '🦾', rarities: [4] },
+    { id: 'c1', name: '100 Coins',    type: 'Coins', icon: '🪙', rarities: [0] },
+    { id: 'c2', name: '200 Coins',    type: 'Coins', icon: '🪙', rarities: [0, 1] },
+    { id: 'c3', name: '500 Coins',    type: 'Coins', icon: '🪙', rarities: [1, 2] },
+    { id: 'c4', name: '1000 Coins',   type: 'Coins', icon: '🪙', rarities: [2, 3] },
+    { id: 'c5', name: '2000 Coins',   type: 'Coins', icon: '🪙', rarities: [3, 4] },
+    { id: 'pp1', name: '50 Power Points',   type: 'Power Points', icon: '🔋', rarities: [0] },
+    { id: 'pp2', name: '100 Power Points',  type: 'Power Points', icon: '🔋', rarities: [0, 1] },
+    { id: 'pp3', name: '200 Power Points',  type: 'Power Points', icon: '🔋', rarities: [1, 2] },
+    { id: 'bl1', name: '50 Bling',   type: 'Bling', icon: '💎', rarities: [1, 2] },
+    { id: 'bl2', name: '100 Bling',  type: 'Bling', icon: '💎', rarities: [2, 3] },
+    { id: 'bl3', name: '200 Bling',  type: 'Bling', icon: '💎', rarities: [3, 4] },
+    { id: 'cr1', name: '100 Credits',   type: 'Credits', icon: '🎫', rarities: [0, 1] },
+    { id: 'cr2', name: '500 Credits',   type: 'Credits', icon: '🎫', rarities: [2, 3] },
+    { id: 'cr3', name: '1500 Credits',  type: 'Credits', icon: '🎫', rarities: [4] },
+    { id: 'buf1', name: 'Buffie',  type: 'Buffie', icon: '🧸', rarities: [4] },
+  ];
+
+  const COLLECTIBLE_TYPES = ['Brawler', 'Gadget', 'Star Power', 'Hypercharge', 'Skin', 'Buffie'];
+
+  const DUPLICATE_FALLBACKS = [
+    { name: '100 Bling',    icon: '💎' },
+    { name: '150 Bling',    icon: '💎' },
+    { name: '250 Bling',    icon: '💎' },
+    { name: '500 Credits',  icon: '🎫' },
+    { name: '1500 Credits', icon: '🎫' },
+  ];
+
+  // ============================================================
+  // STATE
+  // ============================================================
+
+  const STORAGE_KEY = 'chaosDrops';
+
+  function defaultState() {
+    return {
+      totalDrops: 0,
+      rarityCount: [0, 0, 0, 0, 0],
+      splitCount: { 1: 0, 2: 0, 4: 0, 8: 0 },
+      bestDrop: null,
+      collection: {},
+      recentDrops: [],
+      soundOn: true,
+    };
+  }
+
+  let state = loadState();
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        return { ...defaultState(), ...saved };
+      }
+    } catch (e) { /* corrupted data, start fresh */ }
+    return defaultState();
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.warn('Failed to save state:', e);
+    }
+  }
+
+  function resetState() {
+    state = defaultState();
+    saveState();
+    updateUI();
+  }
+
+  function recordDrop(rarityIndex, splitCount, rewards) {
+    state.totalDrops += rewards.length;
+    state.rarityCount[rarityIndex] += rewards.length;
+    state.splitCount[splitCount] = (state.splitCount[splitCount] || 0) + 1;
+
+    if (!state.bestDrop ||
+        rarityIndex > state.bestDrop.rarityIndex ||
+        (rarityIndex === state.bestDrop.rarityIndex && splitCount > state.bestDrop.splitCount)) {
+      state.bestDrop = { rarityIndex, splitCount };
+    }
+
+    for (const r of rewards) {
+      state.recentDrops.unshift(r);
+    }
+    state.recentDrops = state.recentDrops.slice(0, 10);
+
+    for (const r of rewards) {
+      if (COLLECTIBLE_TYPES.includes(r.type) && !r.isDuplicate) {
+        state.collection[r.id] = { dropNumber: state.totalDrops };
+      }
+    }
+
+    saveState();
+  }
+
+  // ============================================================
+  // RNG
+  // ============================================================
+
+  function weightedRandom(items, getWeight) {
+    const total = items.reduce((sum, item) => sum + getWeight(item), 0);
+    let roll = Math.random() * total;
+    for (const item of items) {
+      roll -= getWeight(item);
+      if (roll <= 0) return item;
+    }
+    return items[items.length - 1];
+  }
+
+  function rollRarity() {
+    return RARITIES.indexOf(weightedRandom(RARITIES, r => r.chance));
+  }
+
+  function rollSplit() {
+    return weightedRandom(SPLITS, s => s.chance).count;
+  }
+
+  function getRewardsForRarity(rarityIndex) {
+    return REWARDS.filter(r => r.rarities.includes(rarityIndex));
+  }
+
+  function pickReward(rarityIndex) {
+    const pool = getRewardsForRarity(rarityIndex);
+    if (pool.length === 0) return null;
+
+    const reward = pool[Math.floor(Math.random() * pool.length)];
+    const isCollectible = COLLECTIBLE_TYPES.includes(reward.type);
+    const isDuplicate = isCollectible && state.collection[reward.id];
+
+    if (isDuplicate) {
+      const fallback = DUPLICATE_FALLBACKS[rarityIndex];
+      return {
+        id: reward.id,
+        name: fallback.name,
+        type: 'Fallback',
+        icon: fallback.icon,
+        rarityIndex,
+        isDuplicate: true,
+        originalName: reward.name,
+        originalType: reward.type,
+      };
+    }
+
+    return {
+      id: reward.id,
+      name: reward.name,
+      type: reward.type,
+      icon: reward.icon,
+      rarityIndex,
+      isDuplicate: false,
+    };
+  }
+
+  function performDrop() {
+    const rarityIndex = rollRarity();
+    const splitCount = rollSplit();
+    const rewards = [];
+    for (let i = 0; i < splitCount; i++) {
+      rewards.push(pickReward(rarityIndex));
+    }
+    return { rarityIndex, splitCount, rewards };
+  }
+  </script>
+</body>
+</html>
